@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated MCB Test System HMI</title>
+    <style>
+        :root {
+            --bg-main: #0a0a0c;
+            --bg-panel: #111216;
+            --border-dark: #23252e;
+            --text-main: #e2e8f0;
+            --text-muted: #64748b;
+            --accent-green: #00ff66;
+            --accent-red: #ff3333;
+            --accent-orange: #ff9900;
+            --accent-blue: #3b82f6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'SF Pro Display', 'Segoe UI', sans-serif; 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            background-image: radial-gradient(circle at 50% 50%, #1a1c23 0%, #0a0a0c 100%);
+        }
+
+        .hmi-container { 
+            background-color: var(--bg-panel); 
+            padding: 24px; 
+            border-radius: 8px; 
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05); 
+            width: 1050px; 
+            border: 1px solid var(--border-dark);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .hmi-container.emergency-mode {
+            border-color: var(--accent-red);
+            animation: alarm-flash 1s infinite;
+        }
+
+        @keyframes alarm-flash {
+            0% { box-shadow: 0 25px 50px -12px rgba(255,51,51,0.2), inset 0 0 10px rgba(255,51,51,0.05); }
+            50% { box-shadow: 0 25px 50px -12px rgba(255,51,51,0.8), inset 0 0 80px rgba(255,51,51,0.2); }
+            100% { box-shadow: 0 25px 50px -12px rgba(255,51,51,0.2), inset 0 0 10px rgba(255,51,51,0.05); }
+        }
+
+        .btn-reset { background-color: var(--accent-orange) !important; color: #000 !important; border-color: #b45309 !important; animation: pulse-btn 1.5s infinite; }
+        @keyframes pulse-btn { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.85; transform: scale(0.98); } }
+
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a3324; padding-bottom: 16px; margin-bottom: 24px; }
+        .header h1 { font-size: 18px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent-green); text-shadow: 0 0 10px rgba(0,255,102,0.3); }
+        .header span { font-size: 11px; font-weight: 700; background: #16241a; padding: 4px 8px; border-radius: 4px; color: var(--accent-green); border: 1px solid #1a3324; cursor: pointer; user-select: none; }
+        .header span:hover { background: #1e3a24; }
+
+        .grid { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
+
+        .controls { background-color: #0d0d12; padding: 20px; border-radius: 6px; border: 1px solid var(--border-dark); }
+        
+        label { display: flex; justify-content: space-between; margin-top: 12px; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        
+        select, input[type=range] { width: 100%; margin-bottom: 5px; }
+        select { padding: 10px; border-radius: 4px; border: 1px solid var(--border-dark); background-color: #14151a; color: white; font-size: 13px; outline: none; transition: 0.2s; font-family: monospace; }
+        select:focus { border-color: var(--accent-green); }
+
+        /* Custom Slider */
+        input[type=range] { -webkit-appearance: none; background: transparent; height: 15px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 15px; width: 15px; border-radius: 3px; background: var(--accent-orange); cursor: pointer; margin-top: -5px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 5px; cursor: pointer; background: #23252e; border-radius: 2px; }
+        input[type=range]:focus { outline: none; }
+
+        .btn { width: 100%; padding: 12px; font-size: 12px; font-weight: 700; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s; margin-top: 12px; text-transform: uppercase; letter-spacing: 1.5px; }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(100%); }
+        
+        .btn-start { background-color: #064e3b; color: var(--accent-green); border: 1px solid #047857; }
+        .btn-start:hover:not(:disabled) { background-color: #047857; color: white; box-shadow: 0 0 15px rgba(0,255,102,0.4); }
+        
+        .btn-fault { background-color: #78350f; color: var(--accent-orange); border: 1px solid #b45309; }
+        .btn-fault:hover:not(:disabled) { background-color: #b45309; color: white; box-shadow: 0 0 15px rgba(255,153,0,0.4); }
+        
+        .btn-export { background-color: #1e3a8a; color: #93c5fd; border: 1px solid #2563eb; margin-top: 24px;}
+        .btn-export:hover:not(:disabled) { background-color: #2563eb; color: white; box-shadow: 0 0 15px rgba(59,130,246,0.4); }
+
+        .btn-estop { background-color: #7f1d1d; color: var(--accent-red); border: 1px solid #b91c1c; margin-top: 12px; }
+        .btn-estop:hover:not(:disabled) { background-color: #b91c1c; color: white; box-shadow: 0 0 15px rgba(255,51,51,0.4); }
+
+        .monitor-panel { display: flex; flex-direction: column; gap: 16px; }
+        .monitor { background-color: #050505; padding: 16px; border-radius: 6px; border: 1px solid var(--border-dark); position: relative; }
+        .monitor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .monitor h3 { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin: 0; }
+        
+        .readouts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .readout { background: #0a0a0c; border: 1px solid #1f1f1f; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 11px; color: #fff; min-width: 90px;}
+        .readout span.label { color: var(--text-muted); margin-right: 6px; display: inline-block; width: 35px; }
+        .readout.v-read { border-left: 2px solid var(--accent-blue); }
+        .readout.i-read { border-left: 2px solid var(--accent-green); }
+
+        .monitor-display { display: flex; gap: 16px; height: 260px; }
+
+        .canvas-container { flex: 1; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #112a1c; background-color: #020604; }
+        .canvas-container::after { content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; image-rendering: pixelated; }
+
+        .mcb-hardware-bay { width: 140px; background-color: #08080a; border: 1px solid var(--border-dark); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
+        .mcb-switches-container { display: flex; flex-direction: row; gap: 2px; justify-content: center; width: 100%; }
+
+        .mcb-body { flex: 1; max-width: 32px; height: 120px; background-color: #1e1e24; border: 1px solid #2a2c36; border-radius: 4px; position: relative; display: flex; flex-direction: column; align-items: center; box-shadow: inset 0 2px 5px rgba(0,0,0,0.7), 0 3px 8px rgba(0,0,0,0.5); }
+        .mcb-terminal { width: 60%; height: 8px; background: #333; position: absolute; border: 1px solid #111; left: 50%; transform: translateX(-50%); }
+        .mcb-terminal.top { top: -8px; border-radius: 3px 3px 0 0; }
+        .mcb-terminal.bottom { bottom: -8px; border-radius: 0 0 3px 3px; }
+
+        .mcb-led { width: 4px; height: 4px; border-radius: 50%; background: #444; margin-top: 10px; transition: 0.2s; box-shadow: inset 0 1px 2px #000; }
+        .mcb-led.on { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+        .mcb-led.fault { background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); animation: blink 0.2s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .mcb-switch-bay { width: 70%; height: 50px; background: #0c0c0e; border-radius: 3px; margin-top: 12px; border: 1px solid #000; position: relative; overflow: hidden; box-shadow: inset 0 4px 8px rgba(0,0,0,0.9); }
+        .mcb-lever { width: 70%; height: 35px; background: linear-gradient(180deg, #555, #222); position: absolute; bottom: 2px; left: 50%; border-radius: 2px; border: 1px solid #111; border-top: 2px solid #777; transform: translateX(-50%) translateY(0); transition: transform 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.1s; z-index: 2; }
+        .mcb-lever.on { transform: translateX(-50%) translateY(-22px); background: linear-gradient(180deg, #059669, #064e3b); border-top: 1px solid #10b981; }
+        .mcb-lever.tripped { transform: translateX(-50%) translateY(-11px); background: linear-gradient(180deg, #991b1b, #7f1d1d); border-top: 1px solid #ef4444; }
+        .mcb-lever.off { transform: translateX(-50%) translateY(0px); }
+
+        .mcb-spark { position: absolute; top: 50%; left: 50%; width: 15px; height: 15px; background: #fff; box-shadow: 0 0 20px #ff0, 0 0 35px #fff; border-radius: 50%; transform: translate(-50%, -50%) scale(0); opacity: 0; z-index: 1; pointer-events: none; }
+        .mcb-spark.flash { animation: flash-spark 0.15s ease-out; }
+        @keyframes flash-spark { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(3); } }
+
+        .mcb-status-text { margin-top: 20px; font-family: monospace; font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; text-align: center;}
+        
+        @keyframes rumble-light { 0% { transform: translate(0, 0); } 50% { transform: translate(-1px, 1px); } 100% { transform: translate(1px, -1px); } }
+        @keyframes rumble-heavy { 0% { transform: translate(0, 0) rotate(0deg); } 25% { transform: translate(2px, -2px) rotate(-1deg); } 50% { transform: translate(-2px, 2px) rotate(1deg); } 75% { transform: translate(-2px, -2px) rotate(-1deg); } 100% { transform: translate(2px, 2px) rotate(1deg); } }
+        
+        .mcb-switches-container.testing .mcb-body { animation: rumble-light 0.05s infinite; }
+        .mcb-switches-container.testing.heavy-load .mcb-body { animation: rumble-heavy 0.03s infinite; box-shadow: inset 0 2px 5px rgba(255,0,0,0.2), 0 3px 8px rgba(0,0,0,0.8); }
+
+        .status-bar { padding: 12px; text-align: center; font-size: 12px; font-weight: 700; border-radius: 4px; border: 1px solid var(--border-dark); letter-spacing: 2px; background-color: #0d0d12; text-transform: uppercase; font-family: monospace; transition: all 0.2s; }
+        .status-bar.pass { background-color: #064e3b; color: var(--accent-green); border-color: #047857; text-shadow: 0 0 5px rgba(0,255,102,0.5); }
+        .status-bar.fail { background-color: #7f1d1d; color: var(--accent-red); border-color: #b91c1c; text-shadow: 0 0 5px rgba(255,51,51,0.5); }
+        .status-bar.testing { background-color: #78350f; color: var(--accent-orange); border-color: #b45309; text-shadow: 0 0 5px rgba(255,153,0,0.5); }
+
+        .log-box { background-color: #050505; padding: 12px; border-radius: 4px; border: 1px solid var(--border-dark); font-family: monospace; font-size: 11px; color: var(--text-muted); height: 80px; overflow-y: auto; line-height: 1.6; }
+        .log-new { color: var(--text-main); } .log-warn { color: var(--accent-orange); } .log-err { color: var(--accent-red); font-weight: bold;} .log-ok { color: var(--accent-green); }
+    </style>
+</head>
+<body>
+
+<div class="hmi-container" id="main-container">
+    <div class="header">
+        <h1>e⁻ ELECTRON CREW | Telemetry Dashboard</h1>
+        <span id="audio-toggle" onclick="toggleAudio()">AUDIO: OFF (CLICK TO ENABLE)</span>
+    </div>
+    
+    <div class="grid">
+        <div class="controls">
+            <label>MCB Configuration</label>
+            <select id="poles" onchange="generatePoles()">
+                <option value="1">1P - Single Pole</option>
+                <option value="2" selected>2P - Double Pole</option>
+                <option value="3">3P - Triple Pole</option>
+                <option value="4">4P - Four Pole</option>
+            </select>
+            
+            <label>Rating (In)</label>
+            <select id="rating">
+                <option value="6">6A - Class B</option>
+                <option value="10">10A - Class C</option>
+                <option value="16">16A - Class C</option>
+                <option value="32">32A - Class D</option>
+            </select>
+
+            <label>Ambient Temp <span id="temp-val">30</span>°C</label>
+            <input type="range" id="temp" min="10" max="60" value="30" oninput="document.getElementById('temp-val').innerText=this.value">
+
+            <button class="btn btn-start" id="btn-start" onclick="runTest(false)">Execute Trip Test</button>
+            <button class="btn btn-fault" id="btn-fault" onclick="runTest(true)">Simulate Hardware Fault</button>
+            
+            <button class="btn btn-export" id="btn-export" onclick="exportCSV()" disabled>Export CSV Data</button>
+            <button class="btn btn-estop" id="btn-estop" onclick="toggleEStop()">E-STOP</button>
+        </div>
+
+        <div class="monitor-panel">
+            <div class="monitor">
+                <div class="monitor-header">
+                    <h3>Oscilloscope Telemetry</h3>
+                    <div class="readouts">
+                        <div class="readout v-read"><span class="label">Vrms:</span><span id="readout-v">0</span> V</div>
+                        <div class="readout i-read"><span class="label">Irms:</span><span id="readout-i">0.00</span> A</div>
+                        <div class="readout"><span class="label">Ppeak:</span><span id="readout-p">0.00</span> kW</div>
+                        <div class="readout"><span class="label">I²t:</span><span id="readout-i2t">0.00</span> A²s</div>
+                    </div>
+                </div>
+                
+                <div class="monitor-display">
+                    <div class="canvas-container">
+                        <canvas id="waveformCanvas"></canvas>
+                    </div>
+                    
+                    <div class="mcb-hardware-bay" id="mcb-hardware-container">
+                        <div class="mcb-switches-container" id="mcb-switches"></div>
+                        <div class="mcb-status-text" id="mcb-label">IDLE<br>(OPEN)</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="status" class="status-bar">SYSTEM IDLE : AWAITING COMMAND</div>
+            <div class="log-box" id="logBox"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let canvas, ctx;
+    let vBuffer = []; let iBuffer = [];
+    
+    let isTestActive = false, isEStopActive = false, isTestComplete = false, hasTripped = false;
+    let animationId, tick = 0;
+    let currentTestType = null, waveColorI = '#00ff66', waveColorV = '#3b82f6'; 
+    let maxI = 0, maxV = 0, maxP = 0, totalI2t = 0;
+    
+    let targetVoltageRMS = 230, tripDelayTicks = 80, faultSpikeTicks = 120;
+    let fixedScaleV = 1, fixedScaleI = 1;
+
+    // --- AUDIO ENGINE ---
+    let audioCtx = null;
+    let humOscillator = null;
+    let alarmInterval = null;
+    let audioEnabled = false;
+
+    function toggleAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        audioEnabled = !audioEnabled;
+        const btn = document.getElementById('audio-toggle');
+        if (audioEnabled) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            btn.innerText = "AUDIO: ON";
+            btn.style.color = "#00ff66";
+            btn.style.borderColor = "#047857";
+        } else {
+            btn.innerText = "AUDIO: OFF (CLICK TO ENABLE)";
+            btn.style.color = "#64748b";
+            btn.style.borderColor = "#1a3324";
+            stopHum();
+            stopAlarm();
+        }
+    }
+
+    function playRelayClick() {
+        if (!audioEnabled || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.05);
+    }
+
+    function playArcSnap() {
+        if (!audioEnabled || !audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 0.1; 
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        noise.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        noise.start();
+    }
+
+    function startHum() {
+        if (!audioEnabled || !audioCtx) return;
+        if (humOscillator) humOscillator.stop();
+        humOscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        humOscillator.type = 'sine';
+        humOscillator.frequency.value = 50; 
+        gainNode.gain.value = 0.1; // Keep it subtle
+        humOscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        humOscillator.start();
+    }
+
+    function stopHum() {
+        if (humOscillator) { humOscillator.stop(); humOscillator = null; }
+    }
+
+    function playAlarmBeep() {
+        if (!audioEnabled || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = 800;
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime + 0.2);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function startAlarm() {
+        if (alarmInterval) clearInterval(alarmInterval);
+        playAlarmBeep();
+        alarmInterval = setInterval(playAlarmBeep, 500);
+    }
+
+    function stopAlarm() {
+        if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+    }
+    // ----------------------
+
+    window.onload = function() {
+        canvas = document.getElementById('waveformCanvas');
+        ctx = canvas.getContext('2d');
+        initCanvas();
+        generatePoles(); 
+        const rect = canvas.getBoundingClientRect();
+        for(let i=0; i<rect.width; i++) { vBuffer.push(0); iBuffer.push(0); }
+        animationId = requestAnimationFrame(renderLoop);
+        logMessage('[SYSTEM] Local HMI rendering engine initialized.', 'new');
+    };
+
+    function initCanvas() {
+        if (!canvas) return;
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr); canvas.style.width = `${rect.width}px`; canvas.style.height = `${rect.height}px`;
+    }
+
+    window.onresize = initCanvas;
+
+    function generatePoles() {
+        const count = parseInt(document.getElementById('poles').value);
+        const container = document.getElementById('mcb-switches');
+        targetVoltageRMS = (count >= 3) ? 400 : 230;
+        container.innerHTML = '';
+        for(let i = 0; i < count; i++) {
+            container.innerHTML += `
+                <div class="mcb-body"><div class="mcb-terminal top"></div><div class="mcb-led"></div>
+                <div class="mcb-switch-bay"><div class="mcb-spark"></div><div class="mcb-lever off"></div></div>
+                <div class="mcb-terminal bottom"></div></div>`;
+        }
+    }
+
+    function logMessage(msg, type = 'new') {
+        const box = document.getElementById('logBox');
+        if(box) {
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 2 });
+            const div = document.createElement('div'); div.className = `log-${type}`; div.innerText = `[${time}] ${msg}`;
+            box.appendChild(div); box.scrollTop = box.scrollHeight;
+        }
+    }
+
+    function setControls(disabled) {
+        document.getElementById('btn-start').disabled = disabled; document.getElementById('btn-fault').disabled = disabled;
+        document.getElementById('poles').disabled = disabled; document.getElementById('rating').disabled = disabled;
+        document.getElementById('temp').disabled = disabled;
+    }
+
+    function updateMCBState(state, text) {
+        const levers = document.querySelectorAll('.mcb-lever'), leds = document.querySelectorAll('.mcb-led');
+        const sparks = document.querySelectorAll('.mcb-spark'), hardwareContainer = document.getElementById('mcb-switches');
+        
+        document.getElementById('mcb-label').innerHTML = text;
+        hardwareContainer.className = 'mcb-switches-container'; 
+        levers.forEach(l => l.className = 'mcb-lever'); leds.forEach(l => l.className = 'mcb-led');
+
+        if (state === 'testing') {
+            levers.forEach(l => l.classList.add('on')); hardwareContainer.classList.add('testing'); leds.forEach(l => l.classList.add('on'));
+        } else if (state === 'tripped') {
+            levers.forEach(l => l.classList.add('tripped'));
+            sparks.forEach(s => { s.classList.remove('flash'); void s.offsetWidth; s.classList.add('flash'); });
+        } else if (state === 'welded') {
+            levers.forEach(l => l.classList.add('on')); leds.forEach(l => l.classList.add('fault'));
+        } else {
+            levers.forEach(l => l.classList.add('off'));
+        }
+    }
+
+    function renderLoop() { generateDataPoint(); drawCanvas(); animationId = requestAnimationFrame(renderLoop); }
+
+    function tripHardware(isNormalPass) {
+        hasTripped = true;
+        stopHum();
+        
+        const status = document.getElementById('status');
+        if (isNormalPass) {
+            playArcSnap();
+            playRelayClick();
+            status.className = 'status-bar pass'; status.innerText = 'TEST COMPLETE : PASS';
+            updateMCBState('tripped', 'TRIPPED<br>(OPEN)');
+            logMessage(`MCB Tripped successfully. Peak RMS Current: ${(maxI/Math.SQRT2).toFixed(2)}A`, 'ok');
+        } else {
+            playRelayClick(); // Backup contactor opening
+            status.className = 'status-bar fail'; status.innerText = 'BACKUP ISOLATION ENGAGED';
+            updateMCBState('welded', 'STUCK!<br>(FAULT)');
+            logMessage('MCB Failed to trip. Safety contactor opened circuit.', 'err');
+        }
+    }
+
+    function freezeGraph() { isTestActive = false; isTestComplete = true; setControls(false); document.getElementById('btn-export').disabled = false; }
+
+    function generateDataPoint() {
+        if (isTestComplete) return; 
+
+        let valV = 0, valI = 0; tick++;
+        const peakV = targetVoltageRMS * Math.SQRT2, angularFreq = 0.15, dt = 0.000478; 
+
+        if (isEStopActive) {
+            valV = 0; valI = 0;
+        } else if (isTestActive) {
+            const currentRating = parseFloat(document.getElementById('rating').value);
+            
+            if (currentTestType === 'fault') {
+                if (tick < 10) { valV = peakV * Math.sin(tick * angularFreq); valI = 0;
+                } else if (tick < faultSpikeTicks) {
+                    valV = (peakV * 0.1) * Math.sin(tick * angularFreq); 
+                    valI = (currentRating * 80) * Math.sin(tick * angularFreq) * Math.exp(-(tick-10)*0.01) + (currentRating * 30);
+                } else {
+                    if (!hasTripped) tripHardware(false); 
+                    valV = peakV * Math.sin(tick * angularFreq); valI = iBuffer[iBuffer.length-1] * 0.6; 
+                }
+            } else {
+                if (tick < 10) { valV = peakV * Math.sin(tick * angularFreq); valI = 0;
+                } else if (tick < tripDelayTicks) {
+                    valV = (peakV * 0.95) * Math.sin(tick * angularFreq);
+                    valI = (currentRating * 3.5) * Math.sin(tick * angularFreq - 0.5); 
+                } else {
+                    if (!hasTripped) tripHardware(true); 
+                    valV = peakV * Math.sin(tick * angularFreq); valI = iBuffer[iBuffer.length-1] * 0.6; 
+                }
+            }
+
+            const canvasHeight = canvas.getBoundingClientRect().height;
+            if (tick === 11) {
+                let expectedMaxV = peakV * 1.2;
+                let expectedMaxI = currentTestType === 'fault' ? (currentRating * 110) : (currentRating * 5);
+                fixedScaleV = (canvasHeight / 2) / expectedMaxV; fixedScaleI = (canvasHeight / 2) / expectedMaxI;
+            }
+
+            if (Math.abs(valI) > maxI) maxI = Math.abs(valI); if (Math.abs(valV) > maxV) maxV = Math.abs(valV);
+            const instantPower = Math.abs((valV * valI) / 1000); if (instantPower > maxP) maxP = instantPower;
+            if (Math.abs(valI) > 5) totalI2t += Math.pow(valI, 2) * dt; 
+
+            document.getElementById('readout-v').innerText = (maxV / Math.SQRT2).toFixed(0);
+            document.getElementById('readout-i').innerText = (maxI / Math.SQRT2).toFixed(2);
+            document.getElementById('readout-p').innerText = maxP.toFixed(2);
+            document.getElementById('readout-i2t').innerText = totalI2t.toFixed(0);
+
+            const endTick = currentTestType === 'fault' ? faultSpikeTicks + 50 : tripDelayTicks + 50;
+            if (tick > endTick) freezeGraph(); 
+            
+        } else {
+            valV = peakV * Math.sin(tick * angularFreq); valI = (Math.random() - 0.5) * 1.5; 
+            document.getElementById('readout-v').innerText = targetVoltageRMS;
+            const canvasHeight = canvas.getBoundingClientRect().height;
+            fixedScaleV = (canvasHeight / 2) / (peakV * 1.2); fixedScaleI = (canvasHeight / 2) / 20;
+        }
+
+        vBuffer.push(valV); iBuffer.push(valI);
+        const rect = canvas.getBoundingClientRect();
+        if (vBuffer.length > rect.width) vBuffer.shift(); if (iBuffer.length > rect.width) iBuffer.shift();
+    }
+
+    function drawCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        
+        ctx.strokeStyle = 'rgba(10, 31, 16, 0.5)'; ctx.lineWidth = 1; ctx.beginPath();
+        for(let i = 0; i < rect.width; i += 40) { ctx.moveTo(i, 0); ctx.lineTo(i, rect.height); }
+        for(let i = 0; i < rect.height; i += 40) { ctx.moveTo(0, i); ctx.lineTo(rect.width, i); }
+        ctx.stroke();
+        
+        ctx.strokeStyle = '#164024'; ctx.beginPath(); ctx.moveTo(0, rect.height/2); ctx.lineTo(rect.width, rect.height/2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)'; ctx.lineWidth = 1.5; ctx.shadowBlur = 4; ctx.shadowColor = waveColorV; ctx.beginPath();
+        for (let i = 0; i < vBuffer.length; i++) {
+            const y = (rect.height / 2) - (vBuffer[i] * fixedScaleV);
+            if (i === 0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = waveColorI; ctx.lineWidth = 2.5; ctx.shadowBlur = 10; ctx.shadowColor = waveColorI; ctx.beginPath();
+        for (let i = 0; i < iBuffer.length; i++) {
+            const y = (rect.height / 2) - (iBuffer[i] * fixedScaleI);
+            if (i === 0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+        }
+        ctx.stroke(); ctx.shadowBlur = 0;
+    }
+
+    function runTest(isFault) {
+        if (isTestActive || isEStopActive) return;
+        
+        const poles = document.getElementById('poles').value;
+        const rating = parseFloat(document.getElementById('rating').value);
+        const temp = parseInt(document.getElementById('temp').value);
+
+        isTestActive = true; isTestComplete = false; hasTripped = false; document.getElementById('btn-export').disabled = true; 
+
+        currentTestType = isFault ? 'fault' : 'normal';
+        waveColorI = isFault ? '#ff3333' : '#00ff66';
+        tick = 0; maxI = 0; maxV = 0; maxP = 0; totalI2t = 0;
+
+        // Base timings
+        if (rating === 6) { tripDelayTicks = 60; faultSpikeTicks = 90; 
+        } else if (rating === 10 || rating === 16) { tripDelayTicks = 100; faultSpikeTicks = 120; 
+        } else if (rating === 32) { tripDelayTicks = 150; faultSpikeTicks = 170; }
+        
+        // Apply Temperature Derating (Hotter = Faster Trip)
+        const tempDerating = 1 - ((temp - 30) * 0.015);
+        tripDelayTicks = Math.max(20, tripDelayTicks * tempDerating);
+        
+        setControls(true);
+        updateMCBState('testing', 'LIVE<br>(CLOSED)');
+        
+        playRelayClick();
+        startHum();
+
+        const hardwareContainer = document.getElementById('mcb-switches');
+        if (rating >= 16) hardwareContainer.classList.add('heavy-load');
+        
+        const status = document.getElementById('status');
+        status.className = 'status-bar testing';
+        status.innerText = isFault ? 'INJECTING FAULT SCENARIO' : 'EXECUTING IEC TRIP PROTOCOL';
+        
+        logMessage(`Starting simulation: ${poles}P MCB (${rating}A). Temp adjusted: ${temp}°C`, 'new');
+    }
+
+    function toggleEStop() { if (isEStopActive) resetSystem(); else engageEStop(); }
+
+    function engageEStop() {
+        isTestActive = false; isEStopActive = true; isTestComplete = false; setControls(true);
+        document.getElementById('btn-estop').disabled = false; document.getElementById('btn-export').disabled = true;
+        
+        stopHum();
+        playRelayClick();
+        startAlarm();
+
+        waveColorI = '#ff3333';
+        for(let i = 0; i < vBuffer.length; i++) { vBuffer[i] = 0; iBuffer[i] = 0; }
+
+        document.getElementById('main-container').classList.add('emergency-mode');
+        const estopBtn = document.getElementById('btn-estop');
+        estopBtn.innerText = '⚠ RESET SYSTEM ⚠'; estopBtn.classList.add('btn-reset');
+
+        updateMCBState('estop', 'LOCKED<br>(OPEN)');
+        const status = document.getElementById('status');
+        status.className = 'status-bar fail'; status.innerText = 'SYSTEM LOCKED: HARDWARE E-STOP ENGAGED';
+        logMessage('CRITICAL: Operator triggered Emergency Stop. All relays opened.', 'err');
+    }
+
+    function resetSystem() {
+        isEStopActive = false; isTestComplete = false; hasTripped = false; setControls(false);
+        waveColorI = '#00ff66';
+        
+        stopAlarm();
+        playRelayClick();
+
+        document.getElementById('main-container').classList.remove('emergency-mode');
+        const estopBtn = document.getElementById('btn-estop');
+        estopBtn.innerText = 'E-STOP'; estopBtn.classList.remove('btn-reset');
+        updateMCBState('idle', 'IDLE<br>(OPEN)');
+
+        const status = document.getElementById('status');
+        status.className = 'status-bar'; status.innerText = 'SYSTEM IDLE : READY FOR TEST';
+        logMessage('Safety interlock reset. Relays energized and ready.', 'ok');
+        
+        document.getElementById('readout-i').innerText = '0.00'; document.getElementById('readout-p').innerText = '0.00'; document.getElementById('readout-i2t').innerText = '0.00';
+    }
+
+    function exportCSV() {
+        let csvContent = "data:text/csv;charset=utf-8,Index,Voltage(V),Current(A)\n";
+        vBuffer.forEach((v, index) => { csvContent += `${index},${v.toFixed(2)},${iBuffer[index].toFixed(4)}\n`; });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a"); link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `mcb_telemetry_${Date.now()}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        logMessage('Telemetry data successfully exported to CSV.', 'ok');
+    }
+</script>
+</body>
+</html>
